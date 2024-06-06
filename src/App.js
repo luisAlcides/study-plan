@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import StudyPlan from './pages/StudyPlan';
-import { addProfile, getProfiles, updateProfile, deleteProfile } from './db';
-import { FaSun, FaMoon } from 'react-icons/fa';
+import { FaMoon, FaSun } from 'react-icons/fa';
 import './App.css';
 
 const topics = [
@@ -143,10 +142,12 @@ const topics = [
     },
   },
 ];
-
 const App = () => {
-  const [profiles, setProfiles] = useState([]);
-  const [currentProfile, setCurrentProfile] = useState(null);
+  const [progress, setProgress] = useState(() => {
+    const savedProgress = localStorage.getItem('progress');
+    return savedProgress ? JSON.parse(savedProgress) : topics.reduce((acc, topic) => ({ ...acc, [topic.id]: { basic: {}, intermediate: {}, advanced: {} } }), {});
+  });
+
   const [darkMode, setDarkMode] = useState(() => {
     const savedMode = localStorage.getItem('darkMode');
     return savedMode ? JSON.parse(savedMode) : false;
@@ -161,15 +162,8 @@ const App = () => {
   });
 
   useEffect(() => {
-    const fetchProfiles = async () => {
-      const savedProfiles = await getProfiles();
-      setProfiles(savedProfiles);
-      if (savedProfiles.length > 0) {
-        setCurrentProfile(savedProfiles[0]);
-      }
-    };
-    fetchProfiles();
-  }, []);
+    localStorage.setItem('progress', JSON.stringify(progress));
+  }, [progress]);
 
   useEffect(() => {
     localStorage.setItem('darkMode', JSON.stringify(darkMode));
@@ -179,39 +173,29 @@ const App = () => {
     localStorage.setItem('completedDays', JSON.stringify(completedDays));
   }, [completedDays]);
 
-  const handleAddProfile = async (profileName) => {
-    const newProfile = { name: profileName, progress: {} };
-    const addedProfile = await addProfile(newProfile);
-    const savedProfiles = await getProfiles();
-    setProfiles(savedProfiles);
-    setCurrentProfile(addedProfile);
+  const handleCheckboxChange = (topicId, level, bookIndex) => {
+    setProgress((prevProgress) => {
+      const topicProgress = prevProgress[topicId] || { basic: {}, intermediate: {}, advanced: {} };
+      const levelProgress = topicProgress[level] || {};
+      const newLevelProgress = { ...levelProgress, [bookIndex]: !levelProgress[bookIndex] };
+      return { ...prevProgress, [topicId]: { ...topicProgress, [level]: newLevelProgress } };
+    });
   };
 
-  const handleProfileChange = (profileId) => {
-    const selectedProfile = profiles.find((profile) => profile._id === profileId);
-    setCurrentProfile(selectedProfile);
+  const handleSearchChange = (event) => {
+    setSearchTerm(event.target.value);
   };
 
-  const handleProgressChange = async (topicId, level, bookIndex) => {
-    const updatedProfile = { ...currentProfile };
-    if (!updatedProfile.progress[topicId]) {
-      updatedProfile.progress[topicId] = { basic: {}, intermediate: {}, advanced: {} };
-    }
-    if (!updatedProfile.progress[topicId][level]) {
-      updatedProfile.progress[topicId][level] = {};
-    }
-    updatedProfile.progress[topicId][level][bookIndex] = !updatedProfile.progress[topicId][level][bookIndex];
-    setCurrentProfile(updatedProfile);
-    await updateProfile(updatedProfile);
+  const handleSortChange = (event) => {
+    setSortOption(event.target.value);
   };
 
   const calculateOverallProgress = () => {
-    if (!currentProfile) return 0;
     const totalBooks = topics.reduce((acc, topic) => {
       return acc + Object.values(topic.levels).reduce((levelAcc, books) => levelAcc + books.length, 0);
     }, 0);
     const completedBooks = topics.reduce((acc, topic) => {
-      const topicProgress = currentProfile.progress[topic.id] || { basic: {}, intermediate: {}, advanced: {} };
+      const topicProgress = progress[topic.id] || { basic: {}, intermediate: {}, advanced: {} };
       return acc + Object.keys(topic.levels).reduce((levelAcc, level) => {
         const levelProgress = topicProgress[level] || {};
         const completedInLevel = Object.values(levelProgress).filter(Boolean).length;
@@ -234,7 +218,14 @@ const App = () => {
 
   const sortedTopics = filteredTopics.map(topic => {
     const sortedLevels = Object.keys(topic.levels).reduce((acc, level) => {
-      const sortedBooks = [...topic.levels[level]].sort((a, b) => a.title.localeCompare(b.title));
+      const sortedBooks = [...topic.levels[level]].sort((a, b) => {
+        if (sortOption === 'title') {
+          return a.title.localeCompare(b.title);
+        } else if (sortOption === 'hours') {
+          return a.hours - b.hours;
+        }
+        return 0;
+      });
       acc[level] = sortedBooks;
       return acc;
     }, {});
@@ -250,31 +241,21 @@ const App = () => {
             <div className="container mx-auto p-6">
               <h1 className="text-5xl font-bold mb-6 text-center">Learning Path for Data Science and AI</h1>
               <div className="flex justify-between items-center mb-8">
-                <div className="flex space-x-4">
-                  <select
-                    onChange={(e) => handleProfileChange(e.target.value)}
-                    className={`px-4 py-2 rounded shadow-md ${darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'}`}
-                  >
-                    {profiles.map(profile => (
-                      <option key={profile._id} value={profile._id}>
-                        {profile.name}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    onClick={() => handleAddProfile(prompt('Enter new profile name:'))}
-                    className="bg-blue-500 text-white px-4 py-2 rounded shadow-md hover:bg-blue-600 transition-all duration-300"
-                  >
-                    Add Profile
-                  </button>
-                </div>
-                <button
-                  onClick={() => setDarkMode(!darkMode)}
-                  className="ml-4 px-4 py-2 rounded shadow-md hover:bg-gray-600 transition-all duration-300 flex items-center"
+                <input
+                  type="text"
+                  placeholder="Search for books..."
+                  value={searchTerm}
+                  onChange={handleSearchChange}
+                  className={`px-4 py-2 rounded shadow-md w-full md:w-1/3 ${darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'}`}
+                />
+                <select
+                  value={sortOption}
+                  onChange={handleSortChange}
+                  className={`ml-4 px-4 py-2 rounded shadow-md ${darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'}`}
                 >
-                  {darkMode ? <FaSun /> : <FaMoon />}
-                  <span className="ml-2">{darkMode ? 'Light Mode' : 'Dark Mode'}</span>
-                </button>
+                  <option value="title">Sort by Title</option>
+                  <option value="hours">Sort by Hours</option>
+                </select>
               </div>
               <div className="mb-8">
                 <label className="block text-xl font-semibold mb-2">Overall Progress:</label>
@@ -297,8 +278,8 @@ const App = () => {
                             <li key={index} className="flex items-center mb-2">
                               <input
                                 type="checkbox"
-                                checked={!!currentProfile?.progress[topic.id]?.[level]?.[index]}
-                                onChange={() => handleProgressChange(topic.id, level, index)}
+                                checked={!!progress[topic.id]?.[level]?.[index]}
+                                onChange={() => handleCheckboxChange(topic.id, level, index)}
                                 className="mr-2"
                               />
                               <span className="tooltip">{book.title}
@@ -309,16 +290,24 @@ const App = () => {
                         </ul>
                         <div className="relative pt-1">
                           <div className="overflow-hidden h-2 text-xs flex rounded bg-gray-200">
-                            <div style={{ width: `${(Object.values(currentProfile?.progress[topic.id]?.[level] || {}).filter(Boolean).length / topic.levels[level].length) * 100}%` }} className={`shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center ${darkMode ? 'bg-purple-400' : 'bg-purple-500'} transition-all duration-500`}></div>
+                            <div style={{ width: `${(Object.values(progress[topic.id]?.[level] || {}).filter(Boolean).length / topic.levels[level].length) * 100}%` }} className={`shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center ${darkMode ? 'bg-purple-400' : 'bg-purple-500'} transition-all duration-500`}></div>
                           </div>
                           <span className="block text-right text-sm font-medium mt-1">
-                            {Object.values(currentProfile?.progress[topic.id]?.[level] || {}).filter(Boolean).length} / {topic.levels[level].length} completed
+                            {Object.values(progress[topic.id]?.[level] || {}).filter(Boolean).length} / {topic.levels[level].length} completed
                           </span>
                         </div>
                       </div>
                     ))}
                   </div>
                 ))}
+              </div>
+              <div className="flex justify-center mt-8">
+                <button
+                  onClick={() => setProgress(topics.reduce((acc, topic) => ({ ...acc, [topic.id]: { basic: {}, intermediate: {}, advanced: {} } }), {}))}
+                  className="bg-red-500 text-white px-4 py-2 rounded shadow-md hover:bg-red-600 transition-all duration-300"
+                >
+                  Reset Progress
+                </button>
               </div>
             </div>
           </div>
