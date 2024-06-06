@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import StudyPlan from './pages/StudyPlan';
-import { FaMoon, FaSun } from 'react-icons/fa';
 import './App.css';
 
 const topics = [

@@ -1,5 +1,3 @@
-import React, { useState, useEffect } from 'react';
-
 const StudyPlan = ({ studyDays, setStudyDays, completedDays, setCompletedDays, darkMode }) => {
   const handleStudyDaysChange = (event) => {
     const newStudyDays = parseInt(event.target.value, 10);
