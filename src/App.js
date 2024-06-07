@@ -141,6 +141,7 @@ const topics = [
     },
   },
 ];
+
 const App = () => {
   const [progress, setProgress] = useState(() => {
     const savedProgress = localStorage.getItem('progress');
@@ -309,6 +310,11 @@ const App = () => {
                 </button>
               </div>
             </div>
+            <footer className="mt-8">
+              <div className="container mx-auto p-4 flex justify-between items-center">
+                <p className="text-gray-600 dark:text-gray-400">© 2024 Luis Alcides. All rights reserved.</p>
+              </div>
+            </footer>
           </div>
         } />
         <Route path="/study-plan" element={
